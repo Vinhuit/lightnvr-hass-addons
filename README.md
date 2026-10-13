@@ -42,7 +42,7 @@ Supervisor instance has not yet been verified.
 ```sh
 python -m pip install PyYAML==6.0.2
 python -m unittest discover -s tests -p test_hass_addon.py
-docker build -t lightnvr-hass-addon:0.1.2 lightnvr
+docker build -t lightnvr-hass-addon:0.1.3 lightnvr
 python scripts/test_hass_addon.py
 python scripts/package_hass_addon.py
 ```

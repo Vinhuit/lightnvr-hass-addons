@@ -38,7 +38,7 @@ jobs:
           python -m unittest discover -s tests -p test_hass_addon.py
           shellcheck lightnvr/run.sh
       - name: Build add-on image
-        run: docker build --build-arg BUILD_ARCH=amd64 -t lightnvr-hass-addon:0.1.2 lightnvr
+        run: docker build --build-arg BUILD_ARCH=amd64 -t lightnvr-hass-addon:0.1.3 lightnvr
       - name: Test Ingress and persistent storage
         run: |
           python scripts/test_hass_addon.py

@@ -10,6 +10,9 @@ configuration:
   reset_admin_password:
     name: Reset existing admin password
     description: Set initial_admin_password and enable for recovery, then restart. Disable after login; while enabled, resets at each start.
+  auth_enabled:
+    name: Require LightNVR login
+    description: Enabled by default. Disable to skip LightNVR login through Ingress and the direct web port. Home Assistant login still applies to Ingress.
   detection_server:
     name: Detection service URL
     description: Optional external HTTP(S) detection endpoint. AI service is installed separately.
@@ -23,7 +26,7 @@ configuration:
     name: WebRTC host IP
     description: Home Assistant host IP reachable by camera viewers.
 network:
-  8080/tcp: Optional direct LightNVR web interface (login required)
+  8080/tcp: Optional direct LightNVR web interface (follows auth_enabled)
   8554/tcp: Optional RTSP restream
   8555/tcp: WebRTC media over TCP
   8555/udp: WebRTC media over UDP

@@ -10,6 +10,9 @@ configuration:
   reset_admin_password:
     name: Reset mật khẩu admin hiện có
     description: Nhập mật khẩu vào initial_admin_password, bật reset rồi khởi động lại. Tắt sau khi đăng nhập; khi bật sẽ reset mỗi lần khởi động.
+  auth_enabled:
+    name: Yêu cầu đăng nhập LightNVR
+    description: Mặc định bật. Tắt để bỏ đăng nhập LightNVR qua Ingress và cổng web trực tiếp. Ingress vẫn yêu cầu đăng nhập Home Assistant.
   detection_server:
     name: URL dịch vụ nhận diện
     description: Endpoint HTTP(S) bên ngoài. Cần cài dịch vụ AI riêng.
@@ -23,7 +26,7 @@ configuration:
     name: IP máy chủ WebRTC
     description: IP máy Home Assistant mà thiết bị xem camera có thể truy cập.
 network:
-  8080/tcp: Giao diện LightNVR trực tiếp (tùy chọn, cần đăng nhập)
+  8080/tcp: Giao diện LightNVR trực tiếp (tùy chọn, theo auth_enabled)
   8554/tcp: RTSP restream (tùy chọn)
   8555/tcp: Video WebRTC qua TCP
   8555/udp: Video WebRTC qua UDP

@@ -13,7 +13,7 @@
 4. Optionally set `initial_admin_password` before the first start; otherwise
    a random password is printed once in the add-on log.
 5. Start the add-on, enable **Show in sidebar**, and open its web interface.
-6. Log in as `admin`, then add cameras in **Streams**. A LightNVR login is
+6. Log in as `admin`, then add cameras in **Streams**. By default a LightNVR login is
    required inside Ingress so the NVR retains its own user permissions.
 
 ## Repository installation
@@ -28,6 +28,7 @@ retention_days: 30
 log_level: info
 initial_admin_password: ""
 reset_admin_password: false
+auth_enabled: true
 # Optional:
 # detection_server: http://your-detector:8000/detect
 # ytstream_server: http://your-ytstream:8081/api/sync
@@ -40,6 +41,7 @@ reset_admin_password: false
 | `retention_days` | Recording retention, 1–3650 days. Applied at every start. |
 | `log_level` | `error`, `warning`, `info`, or `debug`. Applied at every start. |
 | `initial_admin_password` | Used only when creating a new configuration. Empty generates a random password. A supplied password must contain at least 12 characters and at most 31 UTF-8 bytes with no whitespace, `;`, or `#`. Change existing users' passwords in LightNVR Users. |
+| `auth_enabled` | Default `true`. Set `false` to skip LightNVR login on both Ingress and the direct web port. Home Assistant authentication still applies to Ingress. |
 | `reset_admin_password` | Recovery only: reset existing admin to `initial_admin_password` at startup, backing up the database and revoking admin sessions. Disable after login. |
 | `detection_server` | Optional external HTTP(S) detection endpoint. The AI service is installed separately; it is not included in this add-on. |
 | `ytstream_server` | Optional external ytstream sync endpoint. Omit to disable YouTube synchronization. ytstream runs separately. |
@@ -60,7 +62,7 @@ already uses that port, resolve the conflict before starting.
 
 Under the add-on's **Network** settings, you can optionally enable:
 
-- `8080/tcp`: direct LightNVR web interface. LightNVR authentication remains enabled.
+- `8080/tcp`: direct LightNVR web interface. LightNVR authentication follows `auth_enabled`.
 - `8554/tcp`: RTSP restream, for example `rtsp://HA_IP:8554/camera-name`.
 
 Keep the WebRTC host mapping at 8555, matching the configured ICE port.
@@ -133,8 +135,8 @@ ytstream or an external AI detection server; those are separate services.
 # Forgotten admin password on HAOS
 
 Editing `[web] password` in `lightnvr.ini` does not change an existing database
-user. Authentication is enforced at startup, so `auth_enabled = false` is also
-overridden. Use the recovery option instead:
+user. Authentication follows the add-on `auth_enabled` option at startup, so editing
+only `auth_enabled` in the INI is overridden. Use the recovery option instead:
 
 1. Update the add-on to 0.1.2 or later.
 2. In its Configuration tab, set `initial_admin_password` to your new password
@@ -153,3 +155,11 @@ with an error instead of modifying another account.
 The bundled LightNVR binary prints a legacy `Password: admin` banner even when
 it creates the admin with the configured password. Use the configured password
 or the add-on first-run password, rather than that static banner.
+
+# Skip LightNVR login
+
+In the add-on Configuration tab, set `auth_enabled: false`, save and restart.
+Ingress still requires Home Assistant login. This also disables LightNVR login
+on port 8080 if that direct port is exposed. Existing users and passwords are
+retained. Set `auth_enabled: true` and restart to restore LightNVR login.
+Editing only the INI is overwritten by the add-on option on the next start.

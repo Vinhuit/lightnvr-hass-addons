@@ -23,6 +23,8 @@ def validate(options):
         raise ValueError("retention_days must be between 1 and 3650")
     if options.get("log_level", "info") not in LEVELS:
         raise ValueError("Invalid log_level")
+    if type(options.get('auth_enabled', True)) is not bool:
+        raise ValueError('auth_enabled must be a boolean')
     for name in ("initial_admin_password", "detection_server", "ytstream_server", "onvif_network", "webrtc_external_ip"):
         value = options.get(name, "")
         if not isinstance(value, str) or any(c in value for c in "\r\n;#\x00"):
@@ -113,7 +115,7 @@ def prepare(options, config_dir=Path('/etc/lightnvr'), data_dir=Path('/data'), m
         'storage': {'path': str(recordings), 'path_hls': str(data_dir / 'hls'), 'mp4_path': str(recordings / 'mp4'), 'retention_days': options.get('retention_days', 30), 'mp4_retention_days': options.get('retention_days', 30), 'ytstream_api_url': options.get('ytstream_server', '')},
         'database': {'path': str(data_dir / 'database/lightnvr.db')},
         'models': {'path': str(data_dir / 'models')},
-        'web': {'port': 8080, 'bind_ip': '0.0.0.0', 'root': '/var/lib/lightnvr/www', 'auth_enabled': 'true'},
+        'web': {'port': 8080, 'bind_ip': '0.0.0.0', 'root': '/var/lib/lightnvr/www', 'auth_enabled': str(options.get('auth_enabled', True)).lower()},
         'go2rtc': {'enabled': 'true', 'binary_path': '/bin/go2rtc', 'config_dir': str(config_dir / 'go2rtc'), 'api_port': 1984, 'rtsp_port': 8554, 'webrtc_listen_port': 8555},
     }
     if new or options.get('reset_admin_password'):

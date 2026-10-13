@@ -58,6 +58,16 @@ class AddonConfigurationTests(unittest.TestCase):
             addon.prepare({}, *self.paths)
         self.assertEqual(output.getvalue(), '')
 
+    def test_authentication_can_be_disabled_and_reenabled_without_changing_password(self):
+        self.prepare()
+        config = self.paths[0] / 'lightnvr.ini'
+        self.prepare({**self.options, 'auth_enabled': False})
+        self.assertIn('auth_enabled = false', config.read_text())
+        self.assertIn('password = TestPassword1234', config.read_text())
+        self.prepare()
+        self.assertIn('auth_enabled = true', config.read_text())
+        self.assertIn('password = TestPassword1234', config.read_text())
+
     def test_bad_options_do_not_mutate_configuration(self):
         self.prepare()
         before = (self.paths[0] / 'lightnvr.ini').read_bytes()
@@ -67,6 +77,7 @@ class AddonConfigurationTests(unittest.TestCase):
             {'initial_admin_password': 'a' * 32},
             {'initial_admin_password': '\u00e1' * 20},
             {'reset_admin_password': 'true'},
+            {'auth_enabled': 'false'},
             {'reset_admin_password': True, 'initial_admin_password': ''},
             {'initial_admin_password': 'password\n[web]\nauth_enabled=false'},
             {'detection_server': 'file:///etc/passwd'},

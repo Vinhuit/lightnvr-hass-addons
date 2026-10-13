@@ -54,7 +54,7 @@ def login(opener, base, password):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--image', default='lightnvr-hass-addon:0.1.2')
+    parser.add_argument('--image', default='lightnvr-hass-addon:0.1.3')
     parser.add_argument('--keep', action='store_true', help='Keep fixtures after success for manual browser testing')
     parser.add_argument('--generated-password', action='store_true', help='Exercise the default first-run generated password')
     parser.add_argument('--bind-address', default='127.0.0.1')
@@ -204,8 +204,37 @@ http {
         check(docker('exec', app, 'python3', '-c',
             "from pathlib import Path; print(len(list(Path('/data/database').glob('*before-password-reset*'))))") == '1',
             'Disabled recovery unexpectedly ran again')
+        docker('stop', '--time', '30', app)
+        docker('rm', '-v', app)
+        (folder / 'data/options.json').write_text(json.dumps({'auth_enabled': False,
+            'retention_days': 3, 'log_level': 'warning'}))
+        start_app()
+        direct = f'http://127.0.0.1:{port(app, 8080)}/'
+        wait_ready(direct + 'login.html')
+        jar.clear()
+        for base in (ingress, direct):
+            with opener.open(base + 'api/auth/verify', timeout=15) as response:
+                auth = json.load(response)
+                check(auth['authenticated'] and auth['auth_enabled'] is False, 'Login bypass did not take effect')
+            for endpoint in ('api/streams', 'api/settings', 'api/system/info'):
+                with opener.open(base + endpoint, timeout=15) as response:
+                    check(response.status == 200, 'Unauthenticated API was rejected with login disabled')
+        docker('stop', '--time', '30', app)
+        docker('rm', '-v', app)
+        (folder / 'data/options.json').write_text(json.dumps({'auth_enabled': True,
+            'retention_days': 3, 'log_level': 'warning'}))
+        start_app()
+        wait_ready(f'http://127.0.0.1:{port(app, 8080)}/login.html')
+        jar.clear()
+        try:
+            opener.open(ingress + 'api/auth/verify', timeout=15)
+            raise AssertionError('Re-enabling authentication still allows unauthenticated access')
+        except urllib.error.HTTPError as error:
+            check(error.code == 401, 'Unexpected response with authentication restored')
+        login(opener, ingress, recovered)
+        check(docker('exec', app, 'cat', marker) == 'persistent media fixture', 'Toggling authentication lost recordings')
         success = True
-        print(json.dumps({'result': 'PASS', 'checks': ['startup', 'login', 'Supervisor-only Ingress', 'cookie path', 'authenticated API', 'WebSocket upgrade', 'graceful stop', 'recreation persistence', 'admin recovery', 'old credentials rejected', 'admin sessions revoked', 'recovery backup', 'recovery disabled'],
+        print(json.dumps({'result': 'PASS', 'checks': ['startup', 'login', 'Supervisor-only Ingress', 'cookie path', 'authenticated API', 'WebSocket upgrade', 'graceful stop', 'recreation persistence', 'admin recovery', 'old credentials rejected', 'admin sessions revoked', 'recovery backup', 'recovery disabled', 'login disabled on Ingress and direct port', 'authentication restored'],
             'ingress_port': ingress_port, 'fixtures': str(folder), 'containers': [app, supervisor], 'network': network, 'kept': args.keep}))
     except Exception:
         # Configuration fixtures contain test credentials only, never real NVR data.

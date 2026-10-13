@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.3
+
+- Add `auth_enabled` to optionally skip the LightNVR login. Default remains enabled.
+- Preserve existing admin credentials when toggling authentication.
+
 ## 0.1.2
 
 - Limit initial passwords to 31 characters, matching LightNVR's INI password buffer.
