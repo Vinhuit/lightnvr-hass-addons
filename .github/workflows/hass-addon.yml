@@ -1,0 +1,43 @@
+name: Home Assistant add-on
+
+on:
+  push:
+    paths:
+      - 'lightnvr/**'
+      - 'repository.yaml'
+      - 'tests/test_hass_addon.py'
+      - 'scripts/test_hass_addon.py'
+      - 'scripts/package_hass_addon.py'
+      - '.github/workflows/hass-addon.yml'
+  pull_request:
+    paths:
+      - 'lightnvr/**'
+      - 'repository.yaml'
+      - 'tests/test_hass_addon.py'
+      - 'scripts/test_hass_addon.py'
+      - 'scripts/package_hass_addon.py'
+      - '.github/workflows/hass-addon.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-and-smoke-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install validation tools
+        run: |
+          python -m pip install PyYAML==6.0.2
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+      - name: Validate configuration and startup script
+        run: |
+          python -m unittest discover -s tests -p test_hass_addon.py
+          shellcheck lightnvr/run.sh
+      - name: Build add-on image
+        run: docker build --build-arg BUILD_ARCH=amd64 -t lightnvr-hass-addon:0.1.0 lightnvr
+      - name: Test Ingress and persistent storage
+        run: python scripts/test_hass_addon.py

@@ -1,0 +1,26 @@
+configuration:
+  retention_days:
+    name: Số ngày lưu recordings
+    description: Số ngày giữ bản ghi camera. Áp dụng khi add-on khởi động.
+  log_level:
+    name: Mức log
+  initial_admin_password:
+    name: Mật khẩu admin ban đầu
+    description: Chỉ dùng ở lần khởi động đầu tiên. Để trống để tạo mật khẩu trong log.
+  detection_server:
+    name: URL dịch vụ nhận diện
+    description: Endpoint HTTP(S) bên ngoài. Cần cài dịch vụ AI riêng.
+  onvif_network:
+    name: Mạng camera ONVIF
+    description: IPv4 CIDR tùy chọn, ví dụ 192.168.1.0/24.
+  ytstream_server:
+    name: URL đồng bộ YouTube
+    description: Endpoint sync của ytstream bên ngoài. Bỏ tùy chọn để tắt đồng bộ YouTube.
+  webrtc_external_ip:
+    name: IP máy chủ WebRTC
+    description: IP máy Home Assistant mà thiết bị xem camera có thể truy cập.
+network:
+  8080/tcp: Giao diện LightNVR trực tiếp (tùy chọn, cần đăng nhập)
+  8554/tcp: RTSP restream (tùy chọn)
+  8555/tcp: Video WebRTC qua TCP
+  8555/udp: Video WebRTC qua UDP

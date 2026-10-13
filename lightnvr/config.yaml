@@ -1,0 +1,51 @@
+name: LightNVR
+version: "0.1.0"
+slug: lightnvr
+description: Lightweight network video recorder with go2rtc and local camera recording
+url: https://github.com/Vinhuit/lightnvr-hass-addons
+arch:
+  - amd64
+startup: application
+boot: auto
+init: true
+stage: experimental
+timeout: 60
+ingress: true
+ingress_port: 8099
+ingress_entry: /
+ingress_stream: true
+panel_icon: mdi:cctv
+panel_title: LightNVR
+panel_admin: true
+webui: http://[HOST]:[PORT:8080]/
+watchdog: tcp://[HOST]:[PORT:8080]
+host_network: false
+backup: cold
+map:
+  - type: app_config
+    path: /etc/lightnvr
+    read_only: false
+  - type: media
+    read_only: false
+ports:
+  8080/tcp: null
+  8554/tcp: null
+  8555/tcp: 8555
+  8555/udp: 8555
+ports_description:
+  8080/tcp: Optional direct LightNVR web UI (login required)
+  8554/tcp: Optional RTSP restream
+  8555/tcp: WebRTC media over TCP
+  8555/udp: WebRTC media over UDP
+options:
+  retention_days: 30
+  log_level: info
+  initial_admin_password: ""
+schema:
+  retention_days: int(1,3650)
+  log_level: list(error|warning|info|debug)
+  initial_admin_password: password
+  detection_server: url?
+  ytstream_server: url?
+  onvif_network: str?
+  webrtc_external_ip: str?
