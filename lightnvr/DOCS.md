@@ -27,6 +27,7 @@ Add `https://github.com/Vinhuit/lightnvr-hass-addons` under the App Store's
 retention_days: 30
 log_level: info
 initial_admin_password: ""
+reset_admin_password: false
 # Optional:
 # detection_server: http://your-detector:8000/detect
 # ytstream_server: http://your-ytstream:8081/api/sync
@@ -39,6 +40,7 @@ initial_admin_password: ""
 | `retention_days` | Recording retention, 1–3650 days. Applied at every start. |
 | `log_level` | `error`, `warning`, `info`, or `debug`. Applied at every start. |
 | `initial_admin_password` | Used only when creating a new configuration. Empty generates a random password. A supplied password must contain 12–63 characters with no whitespace, `;`, or `#`. Change existing users' passwords in LightNVR Users. |
+| `reset_admin_password` | Recovery only: reset existing admin to `initial_admin_password` at startup, backing up the database and revoking admin sessions. Disable after login. |
 | `detection_server` | Optional external HTTP(S) detection endpoint. The AI service is installed separately; it is not included in this add-on. |
 | `ytstream_server` | Optional external ytstream sync endpoint. Omit to disable YouTube synchronization. ytstream runs separately. |
 | `onvif_network` | Optional IPv4 camera network in CIDR notation. Enables discovery; adding cameras by RTSP URL works without it. Bridge networking may limit multicast discovery. |
@@ -127,3 +129,23 @@ the replacement must provide `/bin/lightnvr`, `/bin/go2rtc`, the
 
 This wrapper follows the repository's GPL-3.0 license. It does not install
 ytstream or an external AI detection server; those are separate services.
+
+# Forgotten admin password on HAOS
+
+Editing `[web] password` in `lightnvr.ini` does not change an existing database
+user. Authentication is enforced at startup, so `auth_enabled = false` is also
+overridden. Use the recovery option instead:
+
+1. Update the add-on to 0.1.1 or later.
+2. In its Configuration tab, set `initial_admin_password` to your new password
+   (12-63 characters without whitespace, `;`, or `#`).
+3. Enable `reset_admin_password`, save, and restart the add-on.
+4. Sign in as `admin` using that password.
+5. Disable `reset_admin_password`, save, then restart again. Leaving it enabled
+   resets the password and revokes admin sessions at every start.
+
+The reset preserves cameras, recordings and other users. It does not disable MFA
+or change roles or account restrictions. A database backup is saved under
+`/data/database/lightnvr.before-password-reset-<timestamp>.db`. The new password
+is never printed in logs. If the database has no `admin` user, recovery stops
+with an error instead of modifying another account.

@@ -1,8 +1,10 @@
 import contextlib
 import importlib.util
 import io
+import hashlib
 from pathlib import Path
 import tempfile
+import sqlite3
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -59,6 +61,8 @@ class AddonConfigurationTests(unittest.TestCase):
         invalid = [
             {'retention_days': True}, {'retention_days': 0}, {'log_level': 'verbose'},
             {'initial_admin_password': 'short'},
+            {'reset_admin_password': 'true'},
+            {'reset_admin_password': True, 'initial_admin_password': ''},
             {'initial_admin_password': 'password\n[web]\nauth_enabled=false'},
             {'detection_server': 'file:///etc/passwd'},
             {'ytstream_server': 'file:///etc/passwd'},
@@ -91,6 +95,56 @@ class AddonConfigurationTests(unittest.TestCase):
         self.assertIn('ytstream_api_url = http://ytstream:8081/api/sync', config.read_text())
         self.prepare()
         self.assertNotIn('http://ytstream', config.read_text())
+
+    def test_recovery_resets_existing_admin_and_preserves_other_data(self):
+        self.prepare()
+        database = self.paths[1] / 'database/lightnvr.db'
+        with sqlite3.connect(database) as db:
+            db.executescript("""
+                CREATE TABLE users (id INTEGER PRIMARY KEY, username TEXT, password_hash TEXT, salt TEXT, updated_at INTEGER);
+                INSERT INTO users VALUES (1, 'admin', 'oldhash', 'oldsalt', 1);
+                INSERT INTO users VALUES (2, 'viewer', 'viewerhash', 'viewersalt', 1);
+                CREATE TABLE sessions (user_id INTEGER, token TEXT);
+                INSERT INTO sessions VALUES (1, 'admin-token'), (2, 'viewer-token');
+                CREATE TABLE streams (name TEXT);
+                INSERT INTO streams VALUES ('front');
+            """)
+        options = {**self.options, 'initial_admin_password': 'RecoveredPassword123', 'reset_admin_password': True}
+        with contextlib.redirect_stdout(io.StringIO()) as output:
+            self.prepare(options)
+        self.assertIn('Admin password reset successfully', output.getvalue())
+        self.assertNotIn(options['initial_admin_password'], output.getvalue())
+        with sqlite3.connect(database) as db:
+            digest, salt = db.execute('SELECT password_hash, salt FROM users WHERE id = 1').fetchone()
+            expected = hashlib.pbkdf2_hmac('sha256', b'RecoveredPassword123', bytes.fromhex(salt), 10000, dklen=32).hex()
+            self.assertEqual(digest, expected)
+            self.assertEqual(db.execute('SELECT token FROM sessions').fetchall(), [('viewer-token',)])
+            self.assertEqual(db.execute('SELECT password_hash FROM users WHERE id = 2').fetchone()[0], 'viewerhash')
+            self.assertEqual(db.execute('SELECT name FROM streams').fetchone()[0], 'front')
+        backup = next(database.parent.glob('lightnvr.before-password-reset-*.db'))
+        with sqlite3.connect(backup) as db:
+            self.assertEqual(db.execute('SELECT password_hash FROM users WHERE id = 1').fetchone()[0], 'oldhash')
+        self.prepare()
+        with sqlite3.connect(database) as db:
+            self.assertEqual(db.execute('SELECT password_hash FROM users WHERE id = 1').fetchone()[0], expected)
+
+    def test_recovery_without_database_sets_initial_password(self):
+        self.prepare()
+        self.prepare({**self.options, 'initial_admin_password': 'RecoveredPassword123', 'reset_admin_password': True})
+        self.assertIn('password = RecoveredPassword123', (self.paths[0] / 'lightnvr.ini').read_text())
+        self.assertFalse((self.paths[1] / 'database/lightnvr.db').exists())
+
+    def test_recovery_without_admin_does_not_change_database(self):
+        self.prepare()
+        database = self.paths[1] / 'database/lightnvr.db'
+        with sqlite3.connect(database) as db:
+            db.execute('CREATE TABLE users (id INTEGER, username TEXT)')
+            db.execute("INSERT INTO users VALUES (2, 'viewer')")
+        with self.assertRaisesRegex(ValueError, 'no admin user'):
+            self.prepare({**self.options, 'reset_admin_password': True})
+        with sqlite3.connect(database) as db:
+            self.assertEqual(db.execute('SELECT * FROM users').fetchall(), [(2, 'viewer')])
+        self.assertEqual(list(database.parent.glob('*before-password-reset*')), [])
 
     def test_repository_metadata_matches_runtime_and_translations(self):
         import yaml

@@ -3,7 +3,7 @@
 ARG LIGHTNVR_IMAGE=caubequay00/lightnvr-enrich@sha256:4b443a4314788e915eb58a0ceddc0b3898c69dfd8a69231f0d2c0f0a2352dd7f
 FROM ${LIGHTNVR_IMAGE}
 
-ARG BUILD_VERSION=0.1.0
+ARG BUILD_VERSION=0.1.1
 ARG BUILD_ARCH=amd64
 LABEL io.hass.version="${BUILD_VERSION}" \
       io.hass.type="app" \

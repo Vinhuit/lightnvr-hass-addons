@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.1
+
+- Recover the existing admin password from Home Assistant options without Docker or SSH.
+- Back up the database and revoke admin sessions before applying a password reset.
+
 ## 0.1.0
 
 - Initial amd64 Home Assistant add-on for the enriched LightNVR image.

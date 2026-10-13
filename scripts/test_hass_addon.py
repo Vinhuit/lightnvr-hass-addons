@@ -54,7 +54,7 @@ def login(opener, base, password):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--image', default='lightnvr-hass-addon:0.1.0')
+    parser.add_argument('--image', default='lightnvr-hass-addon:0.1.1')
     parser.add_argument('--keep', action='store_true', help='Keep fixtures after success for manual browser testing')
     parser.add_argument('--bind-address', default='127.0.0.1')
     parser.add_argument('--test-subnet', default='172.30.32.0/29', help='Alternate isolated subnet if the production Supervisor address is already routed')
@@ -164,8 +164,43 @@ http {
         check(docker('exec', app, 'cat', marker) == 'persistent media fixture', 'Media was lost on recreation')
         config = docker('exec', app, 'cat', '/etc/lightnvr/lightnvr.ini')
         check('retention_days = 3' in config, 'Updated retention was not applied')
+        # Recovery must work against the actual pinned binary's password format.
+        recovered = 'AddonRecoveredPassword123'
+        docker('stop', '--time', '30', app)
+        docker('rm', '-v', app)
+        (folder / 'data/options.json').write_text(json.dumps({'initial_admin_password': recovered,
+            'reset_admin_password': True, 'retention_days': 3, 'log_level': 'warning'}))
+        start_app()
+        wait_ready(f'http://127.0.0.1:{port(app, 8080)}/login.html')
+        try:
+            opener.open(ingress + 'api/auth/verify', timeout=15)
+            raise AssertionError('Recovery did not revoke the previous admin session')
+        except urllib.error.HTTPError as error:
+            check(error.code == 401, 'Unexpected response for revoked session')
+        jar.clear()
+        try:
+            login(opener, ingress, password)
+            raise AssertionError('Old admin password still works after recovery')
+        except urllib.error.HTTPError as error:
+            check(error.code == 401, 'Unexpected response for old password')
+        login(opener, ingress, recovered)
+        check(docker('exec', app, 'cat', marker) == 'persistent media fixture', 'Recovery lost recordings')
+        backups = docker('exec', app, 'python3', '-c',
+            "from pathlib import Path; print(len(list(Path('/data/database').glob('*before-password-reset*'))))")
+        check(backups == '1', 'Recovery did not create exactly one database backup')
+        docker('stop', '--time', '30', app)
+        docker('rm', '-v', app)
+        (folder / 'data/options.json').write_text(json.dumps({'initial_admin_password': 'DifferentUnused123',
+            'reset_admin_password': False, 'retention_days': 3, 'log_level': 'warning'}))
+        start_app()
+        wait_ready(f'http://127.0.0.1:{port(app, 8080)}/login.html')
+        jar.clear()
+        login(opener, ingress, recovered)
+        check(docker('exec', app, 'python3', '-c',
+            "from pathlib import Path; print(len(list(Path('/data/database').glob('*before-password-reset*'))))") == '1',
+            'Disabled recovery unexpectedly ran again')
         success = True
-        print(json.dumps({'result': 'PASS', 'checks': ['startup', 'login', 'Supervisor-only Ingress', 'cookie path', 'authenticated API', 'WebSocket upgrade', 'graceful stop', 'recreation persistence'],
+        print(json.dumps({'result': 'PASS', 'checks': ['startup', 'login', 'Supervisor-only Ingress', 'cookie path', 'authenticated API', 'WebSocket upgrade', 'graceful stop', 'recreation persistence', 'admin recovery', 'old credentials rejected', 'admin sessions revoked', 'recovery backup', 'recovery disabled'],
             'ingress_port': ingress_port, 'fixtures': str(folder), 'containers': [app, supervisor], 'network': network, 'kept': args.keep}))
     except Exception:
         # Configuration fixtures contain test credentials only, never real NVR data.

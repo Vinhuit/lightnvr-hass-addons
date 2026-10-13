@@ -7,6 +7,9 @@ configuration:
   initial_admin_password:
     name: Mật khẩu admin ban đầu
     description: Chỉ dùng ở lần khởi động đầu tiên. Để trống để tạo mật khẩu trong log.
+  reset_admin_password:
+    name: Reset mật khẩu admin hiện có
+    description: Nhập mật khẩu vào initial_admin_password, bật reset rồi khởi động lại. Tắt sau khi đăng nhập; khi bật sẽ reset mỗi lần khởi động.
   detection_server:
     name: URL dịch vụ nhận diện
     description: Endpoint HTTP(S) bên ngoài. Cần cài dịch vụ AI riêng.
