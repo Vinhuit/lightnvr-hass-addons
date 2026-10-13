@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.2
+
+- Limit initial passwords to 31 characters, matching LightNVR's INI password buffer.
+- Generate 30-character first-run passwords to avoid silent truncation.
+- Log recovery requests when initializing a new database as well.
+
 ## 0.1.1
 
 - Recover the existing admin password from Home Assistant options without Docker or SSH.

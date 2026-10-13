@@ -39,7 +39,7 @@ reset_admin_password: false
 | --- | --- |
 | `retention_days` | Recording retention, 1–3650 days. Applied at every start. |
 | `log_level` | `error`, `warning`, `info`, or `debug`. Applied at every start. |
-| `initial_admin_password` | Used only when creating a new configuration. Empty generates a random password. A supplied password must contain 12–63 characters with no whitespace, `;`, or `#`. Change existing users' passwords in LightNVR Users. |
+| `initial_admin_password` | Used only when creating a new configuration. Empty generates a random password. A supplied password must contain at least 12 characters and at most 31 UTF-8 bytes with no whitespace, `;`, or `#`. Change existing users' passwords in LightNVR Users. |
 | `reset_admin_password` | Recovery only: reset existing admin to `initial_admin_password` at startup, backing up the database and revoking admin sessions. Disable after login. |
 | `detection_server` | Optional external HTTP(S) detection endpoint. The AI service is installed separately; it is not included in this add-on. |
 | `ytstream_server` | Optional external ytstream sync endpoint. Omit to disable YouTube synchronization. ytstream runs separately. |
@@ -136,9 +136,9 @@ Editing `[web] password` in `lightnvr.ini` does not change an existing database
 user. Authentication is enforced at startup, so `auth_enabled = false` is also
 overridden. Use the recovery option instead:
 
-1. Update the add-on to 0.1.1 or later.
+1. Update the add-on to 0.1.2 or later.
 2. In its Configuration tab, set `initial_admin_password` to your new password
-   (12-63 characters without whitespace, `;`, or `#`).
+   (at least 12 characters, at most 31 UTF-8 bytes, without whitespace, `;`, or `#`).
 3. Enable `reset_admin_password`, save, and restart the add-on.
 4. Sign in as `admin` using that password.
 5. Disable `reset_admin_password`, save, then restart again. Leaving it enabled
@@ -149,3 +149,7 @@ or change roles or account restrictions. A database backup is saved under
 `/data/database/lightnvr.before-password-reset-<timestamp>.db`. The new password
 is never printed in logs. If the database has no `admin` user, recovery stops
 with an error instead of modifying another account.
+
+The bundled LightNVR binary prints a legacy `Password: admin` banner even when
+it creates the admin with the configured password. Use the configured password
+or the add-on first-run password, rather than that static banner.

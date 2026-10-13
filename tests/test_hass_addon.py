@@ -51,6 +51,9 @@ class AddonConfigurationTests(unittest.TestCase):
         with contextlib.redirect_stdout(io.StringIO()) as output:
             addon.prepare({}, *self.paths)
         self.assertIn('First-run LightNVR login', output.getvalue())
+        generated = output.getvalue().split('admin / ', 1)[1].splitlines()[0]
+        self.assertGreaterEqual(len(generated), 12)
+        self.assertLessEqual(len(generated), 31)
         with contextlib.redirect_stdout(io.StringIO()) as output:
             addon.prepare({}, *self.paths)
         self.assertEqual(output.getvalue(), '')
@@ -61,6 +64,8 @@ class AddonConfigurationTests(unittest.TestCase):
         invalid = [
             {'retention_days': True}, {'retention_days': 0}, {'log_level': 'verbose'},
             {'initial_admin_password': 'short'},
+            {'initial_admin_password': 'a' * 32},
+            {'initial_admin_password': '\u00e1' * 20},
             {'reset_admin_password': 'true'},
             {'reset_admin_password': True, 'initial_admin_password': ''},
             {'initial_admin_password': 'password\n[web]\nauth_enabled=false'},

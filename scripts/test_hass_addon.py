@@ -54,8 +54,9 @@ def login(opener, base, password):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--image', default='lightnvr-hass-addon:0.1.1')
+    parser.add_argument('--image', default='lightnvr-hass-addon:0.1.2')
     parser.add_argument('--keep', action='store_true', help='Keep fixtures after success for manual browser testing')
+    parser.add_argument('--generated-password', action='store_true', help='Exercise the default first-run generated password')
     parser.add_argument('--bind-address', default='127.0.0.1')
     parser.add_argument('--test-subnet', default='172.30.32.0/29', help='Alternate isolated subnet if the production Supervisor address is already routed')
     args = parser.parse_args()
@@ -75,8 +76,8 @@ def main():
     folder = Path(tempfile.mkdtemp(prefix=network + '-'))
     for name in ('config', 'data', 'media'):
         (folder / name).mkdir()
-    password = 'AddonTestPassword123'
-    (folder / 'data/options.json').write_text(json.dumps({'initial_admin_password': password, 'retention_days': 7, 'log_level': 'warning'}))
+    password = 'A' * 31
+    (folder / 'data/options.json').write_text(json.dumps({'initial_admin_password': '' if args.generated_password else password, 'retention_days': 7, 'log_level': 'warning'}))
     prefix = '/api/hassio_ingress/addon-test/'
     production_nginx = docker('run', '--rm', '--entrypoint', 'cat', args.image, '/etc/nginx/lightnvr-addon.conf')
     check('allow 172.30.32.2;' in production_nginx and 'deny all;' in production_nginx, 'Production Ingress source restriction is missing')
@@ -121,6 +122,10 @@ http {
         ingress = f'http://127.0.0.1:{ingress_port}' + prefix
         wait_ready(direct + 'login.html')
         wait_ready(ingress + 'login.html')
+        if args.generated_password:
+            logs = docker('logs', app)
+            password = logs.split('First-run LightNVR login: admin / ', 1)[1].splitlines()[0]
+            check(12 <= len(password) <= 31, 'Generated password exceeds the LightNVR INI buffer')
 
         # Other callers cannot access the Ingress listener even with forged headers.
         forbidden = docker('exec', app, 'curl', '-s', '-o', '/dev/null', '-w', '%{http_code}',

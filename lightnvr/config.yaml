@@ -1,5 +1,5 @@
 name: LightNVR
-version: "0.1.1"
+version: "0.1.2"
 slug: lightnvr
 description: Lightweight network video recorder with go2rtc and local camera recording
 url: https://github.com/Vinhuit/lightnvr-hass-addons

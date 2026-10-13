@@ -28,8 +28,8 @@ def validate(options):
         if not isinstance(value, str) or any(c in value for c in "\r\n;#\x00"):
             raise ValueError(f"Invalid {name}: line breaks, INI comment characters and NUL are not supported")
     password = options.get("initial_admin_password", "")
-    if password and (len(password) < 12 or len(password) > 63 or re.search(r"\s", password)):
-        raise ValueError("initial_admin_password must contain 12–63 characters without whitespace")
+    if password and (len(password) < 12 or len(password.encode('utf-8')) > 31 or re.search(r"\s", password)):
+        raise ValueError("initial_admin_password must contain 12–31 characters without whitespace (maximum 31 UTF-8 bytes)")
     if type(options.get('reset_admin_password', False)) is not bool:
         raise ValueError('reset_admin_password must be a boolean')
     if options.get('reset_admin_password') and not password:
@@ -80,6 +80,7 @@ def patch_ini(text, values):
 def reset_admin(database, password):
     """Recover the existing admin before LightNVR starts, retaining all NVR data."""
     if not database.exists():
+        print('Admin password recovery requested: new database; admin will be created with initial_admin_password.', flush=True)
         return  # LightNVR will create admin using the newly written INI password.
     with contextlib.closing(sqlite3.connect(database.as_uri() + '?mode=rw', uri=True)) as db:
         user = db.execute("SELECT id FROM users WHERE username = 'admin'").fetchone()
@@ -116,7 +117,7 @@ def prepare(options, config_dir=Path('/etc/lightnvr'), data_dir=Path('/data'), m
         'go2rtc': {'enabled': 'true', 'binary_path': '/bin/go2rtc', 'config_dir': str(config_dir / 'go2rtc'), 'api_port': 1984, 'rtsp_port': 8554, 'webrtc_listen_port': 8555},
     }
     if new or options.get('reset_admin_password'):
-        password = options.get('initial_admin_password') or secrets.token_urlsafe(24)
+        password = options.get('initial_admin_password') or secrets.token_urlsafe(22)
         values['web'].update(username='admin', password=password)
     if new:
         values['storage'].update(auto_delete_oldest='true', record_mp4_directly='true', mp4_segment_duration=900)
