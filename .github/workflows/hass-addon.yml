@@ -6,6 +6,7 @@ on:
       - 'lightnvr/**'
       - 'repository.yaml'
       - 'tests/test_hass_addon.py'
+      - 'tests/test_addon_ytstream.py'
       - 'scripts/test_hass_addon.py'
       - 'scripts/check_internal_detector.py'
       - 'scripts/package_hass_addon.py'
@@ -15,6 +16,7 @@ on:
       - 'lightnvr/**'
       - 'repository.yaml'
       - 'tests/test_hass_addon.py'
+      - 'tests/test_addon_ytstream.py'
       - 'scripts/test_hass_addon.py'
       - 'scripts/check_internal_detector.py'
       - 'scripts/package_hass_addon.py'
@@ -40,8 +42,8 @@ jobs:
           python -m unittest discover -s tests -p test_hass_addon.py
           shellcheck lightnvr/run.sh
       - name: Build add-on image
-        run: docker build --build-arg BUILD_ARCH=amd64 -t lightnvr-hass-addon:0.2.0 lightnvr
+        run: docker build --build-arg BUILD_ARCH=amd64 -t lightnvr-hass-addon:0.3.0 lightnvr
       - name: Test Ingress and persistent storage
         run: |
           python scripts/test_hass_addon.py
-          python scripts/test_hass_addon.py --generated-password
+          python scripts/test_hass_addon.py --generated-password --failure-service ytstream

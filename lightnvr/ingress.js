@@ -5,6 +5,10 @@
     function mapUrl(input) {
         try {
             const url = new URL(input, location.href);
+            if ((url.port === '8081' && ['localhost', '127.0.0.1', location.hostname].includes(url.hostname))
+                || url.hostname === 'ytlive.mixsmart.dev') {
+                return location.origin + prefix + '/ytstream' + url.pathname + url.search + url.hash;
+            }
             if (url.hostname !== location.hostname || !url.pathname.startsWith('/go2rtc/')) return input;
             url.protocol = url.protocol === 'ws:' || url.protocol === 'wss:'
                 ? (location.protocol === 'https:' ? 'wss:' : 'ws:')
@@ -31,4 +35,21 @@
             return Reflect.construct(target, args);
         }
     });
+    function updateLinks() {
+        document.querySelectorAll('a[href]').forEach(link => {
+            const mapped = mapUrl(link.href);
+            if (mapped !== link.href) link.href = mapped;
+        });
+        const footer = document.querySelector('footer .container');
+        if (footer && !footer.querySelector('[data-addon-ytstream]')) {
+            const link = document.createElement('a');
+            link.href = prefix + '/ytstream/';
+            link.textContent = 'YTStream';
+            link.dataset.addonYtstream = 'true';
+            link.className = 'text-sm no-underline hover:underline';
+            footer.appendChild(link);
+        }
+    }
+    new MutationObserver(updateLinks).observe(document.documentElement, { childList: true, subtree: true });
+    document.addEventListener('DOMContentLoaded', updateLinks);
 })();

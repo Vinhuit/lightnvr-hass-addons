@@ -10,7 +10,6 @@ import secrets
 import sqlite3
 import tempfile
 import time
-from urllib.parse import urlparse
 
 LEVELS = {"error": 0, "warning": 1, "info": 2, "debug": 3}
 
@@ -25,7 +24,7 @@ def validate(options):
         raise ValueError("Invalid log_level")
     if type(options.get('auth_enabled', True)) is not bool:
         raise ValueError('auth_enabled must be a boolean')
-    for name in ("initial_admin_password", "ytstream_server", "onvif_network", "webrtc_external_ip"):
+    for name in ("initial_admin_password", "onvif_network", "webrtc_external_ip"):
         value = options.get(name, "")
         if not isinstance(value, str) or any(c in value for c in "\r\n;#\x00"):
             raise ValueError(f"Invalid {name}: line breaks, INI comment characters and NUL are not supported")
@@ -42,11 +41,6 @@ def validate(options):
             raise ValueError("onvif_network must be an IPv4 CIDR network")
     if options.get("webrtc_external_ip"):
         ipaddress.ip_address(options["webrtc_external_ip"])
-    for name in ('ytstream_server',):
-        if options.get(name):
-            url = urlparse(options[name])
-            if url.scheme not in ("http", "https") or not url.hostname:
-                raise ValueError(f"{name} must be an HTTP(S) URL")
 
 
 def patch_ini(text, values):
@@ -106,13 +100,23 @@ def prepare(options, config_dir=Path('/etc/lightnvr'), data_dir=Path('/data'), m
     validate(options)
     config_dir, data_dir, media_dir = map(Path, (config_dir, data_dir, media_dir))
     recordings = media_dir / 'lightnvr' / 'recordings'
-    for path in (config_dir / 'go2rtc', data_dir / 'database', data_dir / 'models', data_dir / 'detector', data_dir / 'hls', data_dir / 'log', recordings / 'mp4'):
+    for path in (config_dir / 'go2rtc', data_dir / 'database', data_dir / 'models', data_dir / 'detector', data_dir / 'ytstream', data_dir / 'hls', data_dir / 'log', recordings / 'mp4'):
         path.mkdir(parents=True, exist_ok=True)
+    ytstream_dir = data_dir / 'ytstream'
+    os.chmod(ytstream_dir, 0o700)
+    secret = ytstream_dir / 'flask_secret'
+    if not secret.exists():
+        fd = os.open(secret, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, 'w') as f:
+            f.write(secrets.token_urlsafe(48))
+    stream_list = ytstream_dir / 'stream.json'
+    if not stream_list.exists():
+        stream_list.write_text('[]', encoding='utf-8')
     config = config_dir / 'lightnvr.ini'
     new = not config.exists()
     values = {
         'general': {'pid_file': '/run/lightnvr.pid', 'log_file': str(data_dir / 'log/lightnvr.log'), 'log_level': LEVELS[options.get('log_level', 'info')]},
-        'storage': {'path': str(recordings), 'path_hls': str(data_dir / 'hls'), 'mp4_path': str(recordings / 'mp4'), 'retention_days': options.get('retention_days', 30), 'mp4_retention_days': options.get('retention_days', 30), 'ytstream_api_url': options.get('ytstream_server', '')},
+        'storage': {'path': str(recordings), 'path_hls': str(data_dir / 'hls'), 'mp4_path': str(recordings / 'mp4'), 'retention_days': options.get('retention_days', 30), 'mp4_retention_days': options.get('retention_days', 30), 'ytstream_api_url': 'http://127.0.0.1:8081/api/sync'},
         'database': {'path': str(data_dir / 'database/lightnvr.db')},
         'models': {'path': str(data_dir / 'models')},
         'api_detection': {

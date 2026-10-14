@@ -16,9 +16,6 @@ configuration:
   onvif_network:
     name: Mạng camera ONVIF
     description: IPv4 CIDR tùy chọn, ví dụ 192.168.1.0/24.
-  ytstream_server:
-    name: URL đồng bộ YouTube
-    description: Endpoint sync của ytstream bên ngoài. Bỏ tùy chọn để tắt đồng bộ YouTube.
   webrtc_external_ip:
     name: IP máy chủ WebRTC
     description: IP máy Home Assistant mà thiết bị xem camera có thể truy cập.

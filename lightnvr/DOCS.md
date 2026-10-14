@@ -10,7 +10,7 @@
    then use **Check for updates** or reload the store. LightNVR should appear
    under **Local apps**.
 3. Install LightNVR. Supervisor downloads the prebuilt image containing
-   LightNVR, go2rtc, object detection, face recognition, and classification.
+   LightNVR, go2rtc, object detection, face recognition, classification, and YTStream.
 4. Optionally set `initial_admin_password` before the first start; otherwise
    a random password is printed once in the add-on log.
 5. Start the add-on, enable **Show in sidebar**, and open its web interface.
@@ -31,7 +31,6 @@ initial_admin_password: ""
 reset_admin_password: false
 auth_enabled: true
 # Optional:
-# ytstream_server: http://your-ytstream:8081/api/sync
 # onvif_network: 192.168.1.0/24
 # webrtc_external_ip: 192.168.1.10
 ```
@@ -43,7 +42,6 @@ auth_enabled: true
 | `initial_admin_password` | Used only when creating a new configuration. Empty generates a random password. A supplied password must contain at least 12 characters and at most 31 UTF-8 bytes with no whitespace, `;`, or `#`. Change existing users' passwords in LightNVR Users. |
 | `auth_enabled` | Default `true`. Set `false` to skip LightNVR login on both Ingress and the direct web port. Home Assistant authentication still applies to Ingress. |
 | `reset_admin_password` | Recovery only: reset existing admin to `initial_admin_password` at startup, backing up the database and revoking admin sessions. Disable after login. |
-| `ytstream_server` | Optional external ytstream sync endpoint. Omit to disable YouTube synchronization. ytstream runs separately. |
 | `onvif_network` | Optional IPv4 camera network in CIDR notation. Enables discovery; adding cameras by RTSP URL works without it. Bridge networking may limit multicast discovery. |
 | `webrtc_external_ip` | Optional reachable host IP advertised to WebRTC clients. Use your Home Assistant LAN IP if video cannot connect. |
 
@@ -70,8 +68,31 @@ the internal service. Existing face-recognition and classification enable
 settings are preserved; enable the features in LightNVR Settings as needed.
 
 Previous face identities stored in a separate detector are not automatically
-imported; register identities in the add-on's Faces page. YouTube publishing
-still uses the optional ytstream service.
+imported; register identities in the add-on's Faces page.
+
+# Internal YouTube streaming
+
+YTStream runs inside this add-on on `127.0.0.1:8081`. LightNVR automatically
+syncs with `http://127.0.0.1:8081/api/sync`, and YTStream reads camera restreams
+from `rtsp://127.0.0.1:8554`. Port 8081 is not exposed to the host.
+
+Open **YTStream** from the LightNVR footer or YouTube Live View. Its dashboard
+is served under the same Home Assistant Ingress session. To connect YouTube:
+
+1. Open Home Assistant using your HTTPS address.
+2. In Google Cloud, enable the YouTube Data API and create an OAuth client of
+   type **Web application**. Configure the consent screen for your account.
+3. Copy the **Authorized redirect URI** shown on the dashboard into that OAuth
+   client's redirect URI list, then download its client JSON.
+4. Choose **Upload Google OAuth client JSON**, then **Authorize** and approve
+   Google access for the account you want to use.
+5. Enable YouTube streaming for the cameras you want to publish in LightNVR.
+
+Accounts, OAuth tokens, stream settings, retry state, logs, and broadcast
+history persist under `/data/ytstream` and are included in the add-on backup.
+They are not copied from a separate host's ytstream container. The app does
+not automatically authorize Google or enable camera publishing on install.
+YTStream's account selector supports multiple accounts.
 
 # Network
 
@@ -98,6 +119,7 @@ unsuitable. The go2rtc API is intentionally kept inside the container.
 | Database and migrations state | `/data/database` |
 | Models | `/data/models` |
 | Face identities and classification training | `/data/detector` |
+| YouTube accounts, credentials, settings, logs and history | `/data/ytstream` |
 | HLS cache | `/data/hls` |
 | Application logs | `/data/log` |
 | Recordings | `/media/lightnvr/recordings` |
@@ -120,7 +142,7 @@ image with the same functionality is published and tested.
 
 ```sh
 python -m unittest discover -s tests -p test_hass_addon.py
-docker build -t lightnvr-hass-addon:0.2.0 lightnvr
+docker build -t lightnvr-hass-addon:0.3.0 lightnvr
 python scripts/test_hass_addon.py
 python scripts/package_hass_addon.py
 ```

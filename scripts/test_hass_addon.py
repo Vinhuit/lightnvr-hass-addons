@@ -54,9 +54,11 @@ def login(opener, base, password):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--image', default='lightnvr-hass-addon:0.2.0')
+    parser.add_argument('--image', default='lightnvr-hass-addon:0.3.0')
     parser.add_argument('--keep', action='store_true', help='Keep fixtures after success for manual browser testing')
     parser.add_argument('--generated-password', action='store_true', help='Exercise the default first-run generated password')
+    parser.add_argument('--failure-service', choices=['detector', 'ytstream'], default='detector')
+    parser.add_argument('--browser-fixture', action='store_true', help='Keep a running isolated fixture for browser verification')
     parser.add_argument('--bind-address', default='127.0.0.1')
     parser.add_argument('--test-subnet', default='172.30.32.0/29', help='Alternate isolated subnet if the production Supervisor address is already routed')
     args = parser.parse_args()
@@ -122,6 +124,38 @@ http {
         ingress = f'http://127.0.0.1:{ingress_port}' + prefix
         wait_ready(direct + 'login.html')
         wait_ready(ingress + 'login.html')
+        yt_base = ingress + 'ytstream/'
+        wait_ready(yt_base + 'health')
+        if args.browser_fixture:
+            success = True
+            args.keep = True
+            print(json.dumps({'ingress_port': ingress_port, 'containers': [app, supervisor], 'network': network, 'fixtures': str(folder)}))
+            return
+        with urllib.request.urlopen(yt_base) as response:
+            check(b'YT Streamer' in response.read(), 'YTStream dashboard is missing from Ingress')
+        for asset in ('app.js', 'style.css', 'lucide.min.js', 'oauth-setup.js'):
+            with urllib.request.urlopen(yt_base + asset) as response:
+                check(response.status == 200, 'YTStream asset is missing: ' + asset)
+        with urllib.request.urlopen(yt_base + 'api/oauth/client') as response:
+            oauth_setup = json.load(response)
+            check(oauth_setup['redirect_uri'] == yt_base + 'oauth2callback', 'OAuth redirect escaped Ingress')
+        with urllib.request.urlopen(urllib.request.Request(yt_base + 'api/accounts',
+                data=json.dumps({'id': 'persistence-fixture', 'label': 'Persistent test account'}).encode(),
+                headers={'Content-Type': 'application/json'})) as response:
+            check(response.status == 201, 'Cannot configure internal YouTube accounts')
+        with urllib.request.urlopen(urllib.request.Request(yt_base + 'api/settings',
+                data=json.dumps({'history_days_limit': 17}).encode(),
+                headers={'Content-Type': 'application/json'})) as response:
+            check(response.status == 200, 'Cannot save internal YouTube settings')
+        docker('exec', app, '/opt/ytstream-venv/bin/python', '-c',
+            "from pathlib import Path; import json,pickle; from google.oauth2.credentials import Credentials; "
+            "p=Path('/data/ytstream/accounts/persistence-fixture'); "
+            "p.mkdir(parents=True,exist_ok=True); "
+            "(p/'token.pickle').write_bytes(pickle.dumps(Credentials(token='fixture-token',client_id='fixture-client'))); "
+            "Path('/data/ytstream/stream_history.json').write_text(json.dumps({'streams':{},'fixture':'persistent-history'}))")
+        yt_tests = Path(__file__).resolve().parents[1] / 'tests/test_addon_ytstream.py'
+        docker('cp', str(yt_tests), app + ':/tmp/test_addon_ytstream.py')
+        docker('exec', app, '/opt/ytstream-venv/bin/python', '/tmp/test_addon_ytstream.py')
         if args.generated_password:
             logs = docker('logs', app)
             password = logs.split('First-run LightNVR login: admin / ', 1)[1].splitlines()[0]
@@ -131,6 +165,9 @@ http {
         forbidden = docker('exec', app, 'curl', '-s', '-o', '/dev/null', '-w', '%{http_code}',
             '-H', 'X-Forwarded-For: 172.30.32.2', 'http://127.0.0.1:8099/')
         check(forbidden == '403', 'Ingress listener accepted a non-Supervisor caller')
+        forbidden_yt = docker('exec', app, 'curl', '-s', '-o', '/dev/null', '-w', '%{http_code}',
+            'http://127.0.0.1:8099/ytstream/api/accounts')
+        check(forbidden_yt == '403', 'YTStream accepted a non-Supervisor Ingress caller')
         jar = http.cookiejar.CookieJar()
         opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
         login(opener, ingress, password)
@@ -160,9 +197,13 @@ http {
             '/tmp/check_internal_detector.py', 'initialize'), 'Internal AI inference failed')
         bindings = json.loads(docker('inspect', app))[0]['NetworkSettings']['Ports']
         check('8000/tcp' not in bindings, 'Internal detector port was published')
+        check('8081/tcp' not in bindings, 'YTStream port was published')
         loopback = docker('exec', app, '/opt/venv/bin/python', '-c',
             "import socket; s=socket.socket(); print(s.connect_ex((socket.gethostbyname(socket.gethostname()), 8000)))")
         check(loopback != '0', 'Detector is reachable on the container network interface')
+        yt_loopback = docker('exec', app, '/opt/ytstream-venv/bin/python', '-c',
+            "import socket; s=socket.socket(); print(s.connect_ex((socket.gethostbyname(socket.gethostname()), 8081)))")
+        check(yt_loopback != '0', 'YTStream is reachable on the container network interface')
 
         marker = '/media/lightnvr/recordings/persistence-test.txt'
         docker('exec', app, 'python3', '-c', f'from pathlib import Path; Path({marker!r}).write_text("persistent media fixture")')
@@ -176,6 +217,15 @@ http {
         wait_ready(f'http://127.0.0.1:{port(app, 8080)}/login.html')
         jar.clear()
         login(opener, ingress, password)
+        with urllib.request.urlopen(yt_base + 'api/accounts') as response:
+            check('persistence-fixture' in [a['id'] for a in json.load(response)['accounts']], 'YouTube accounts were lost on recreation')
+        with urllib.request.urlopen(yt_base + 'api/settings') as response:
+            check(json.load(response)['history_days_limit'] == 17, 'YouTube settings were lost on recreation')
+        check('persistent-history' in docker('exec', app, 'cat', '/data/ytstream/stream_history.json'),
+              'YouTube history was lost on recreation')
+        token_fixture = docker('exec', app, '/opt/ytstream-venv/bin/python', '-c',
+            "import pickle; from pathlib import Path; c=pickle.loads(Path('/data/ytstream/accounts/persistence-fixture/token.pickle').read_bytes()); print(c.token=='fixture-token')")
+        check(token_fixture == 'True', 'YouTube credentials were lost on recreation')
         check(docker('exec', app, 'cat', marker) == 'persistent media fixture', 'Media was lost on recreation')
         docker('cp', str(internal_check), app + ':/tmp/check_internal_detector.py')
         check('INTERNAL_DETECTOR_PASS' in docker('exec', app, '/opt/venv/bin/python',
@@ -246,19 +296,21 @@ http {
             check(error.code == 401, 'Unexpected response with authentication restored')
         login(opener, ingress, recovered)
         check(docker('exec', app, 'cat', marker) == 'persistent media fixture', 'Toggling authentication lost recordings')
+        service_prefix = (b'/opt/venv/bin/python\x00-m\x00uvicorn\x00' if args.failure_service == 'detector'
+                          else b'/opt/ytstream-venv/bin/python\x00/opt/ytstream/ytstream.py\x00')
         docker('exec', app, '/opt/venv/bin/python', '-c',
             "from pathlib import Path; import os,signal; "
             "pids=[int(p.parent.name) for p in Path('/proc').glob('[0-9]*/cmdline') "
-            "if p.read_bytes().startswith(b'/opt/venv/bin/python\\x00-m\\x00uvicorn\\x00')]; "
+            f"if p.read_bytes().startswith({service_prefix!r})]; "
             "assert len(pids)==1,pids; os.kill(pids[0],signal.SIGTERM)")
         for _ in range(30):
             if not json.loads(docker('inspect', app))[0]['State']['Running']:
                 break
             time.sleep(1)
         check(not json.loads(docker('inspect', app))[0]['State']['Running'],
-              'Add-on stayed up after the internal detector exited')
+              'Add-on stayed up after an internal service exited')
         success = True
-        print(json.dumps({'result': 'PASS', 'checks': ['startup', 'login', 'Supervisor-only Ingress', 'cookie path', 'authenticated API', 'WebSocket upgrade', 'internal object and face inference', 'internal classification training', 'detector loopback only', 'face/classification persistence', 'detector exit stops add-on', 'graceful stop', 'recreation persistence', 'admin recovery', 'old credentials rejected', 'admin sessions revoked', 'recovery backup', 'recovery disabled', 'login disabled on Ingress and direct port', 'authentication restored'],
+        print(json.dumps({'result': 'PASS', 'checks': ['startup', 'login', 'Supervisor-only Ingress', 'cookie path', 'authenticated API', 'WebSocket upgrade', 'internal object and face inference', 'internal classification training', 'detector loopback only', 'face/classification persistence', 'YTStream Ingress and assets', 'YouTube OAuth callbacks', 'YouTube account/settings persistence', 'YTStream loopback only', args.failure_service + ' exit stops add-on', 'graceful stop', 'recreation persistence', 'admin recovery', 'old credentials rejected', 'admin sessions revoked', 'recovery backup', 'recovery disabled', 'login disabled on Ingress and direct port', 'authentication restored'],
             'ingress_port': ingress_port, 'fixtures': str(folder), 'containers': [app, supervisor], 'network': network, 'kept': args.keep}))
     except Exception:
         # Configuration fixtures contain test credentials only, never real NVR data.

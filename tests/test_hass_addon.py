@@ -80,7 +80,6 @@ class AddonConfigurationTests(unittest.TestCase):
             {'auth_enabled': 'false'},
             {'reset_admin_password': True, 'initial_admin_password': ''},
             {'initial_admin_password': 'password\n[web]\nauth_enabled=false'},
-            {'ytstream_server': 'file:///etc/passwd'},
             {'onvif_network': 'not-a-network'}, {'webrtc_external_ip': 'host.invalid'},
         ]
         for change in invalid:
@@ -121,14 +120,20 @@ class AddonConfigurationTests(unittest.TestCase):
         self.assertNotIn('auth_enabled = false', text)
         self.assertIn('; keep comment', text)
 
-    def test_youtube_sync_requires_an_explicit_external_service(self):
+    def test_youtube_sync_is_internal_and_account_state_survives_upgrade(self):
         self.prepare()
         config = self.paths[0] / 'lightnvr.ini'
-        self.assertIn('ytstream_api_url = \n', config.read_text())
-        self.prepare({**self.options, 'ytstream_server': 'http://ytstream:8081/api/sync'})
-        self.assertIn('ytstream_api_url = http://ytstream:8081/api/sync', config.read_text())
-        self.prepare()
-        self.assertNotIn('http://ytstream', config.read_text())
+        self.assertIn('ytstream_api_url = http://127.0.0.1:8081/api/sync', config.read_text())
+        yt_folder = self.paths[1] / 'ytstream'
+        secret = (yt_folder / 'flask_secret').read_text()
+        (yt_folder / 'stream.json').write_text('[{"stream_name":"front"}]')
+        (yt_folder / 'token.pickle').write_bytes(b'persistent credential fixture')
+        self.prepare({**self.options, 'ytstream_server': 'http://old-ytstream:8081/api/sync'})
+        self.assertIn('ytstream_api_url = http://127.0.0.1:8081/api/sync', config.read_text())
+        self.assertNotIn('old-ytstream', config.read_text())
+        self.assertEqual((yt_folder / 'flask_secret').read_text(), secret)
+        self.assertEqual((yt_folder / 'token.pickle').read_bytes(), b'persistent credential fixture')
+        self.assertIn('front', (yt_folder / 'stream.json').read_text())
 
     def test_recovery_resets_existing_admin_and_preserves_other_data(self):
         self.prepare()
@@ -195,7 +200,9 @@ class AddonConfigurationTests(unittest.TestCase):
         self.assertNotIn('8099/tcp', config['ports'])
         self.assertEqual(config['image'], 'caubequay00/lightnvr-hass-addon')
         self.assertNotIn('8000/tcp', config['ports'])
+        self.assertNotIn('8081/tcp', config['ports'])
         self.assertNotIn('detection_server', config['schema'])
+        self.assertNotIn('ytstream_server', config['schema'])
         for language in ('en', 'vi'):
             translation = yaml.safe_load((folder / f'translations/{language}.yaml').read_text(encoding='utf-8'))
             self.assertEqual(set(translation['configuration']), set(config['schema']))

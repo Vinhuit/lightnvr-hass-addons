@@ -28,14 +28,15 @@ is printed once in the add-on log. Home Assistant OS or Supervisor is required.
 - [Installation and configuration](lightnvr/DOCS.md)
 - [Changelog](lightnvr/CHANGELOG.md)
 
-LightNVR, go2rtc, and light-object-detect run together in one add-on.
+LightNVR, go2rtc, light-object-detect, and YTStream run together in one add-on.
 Object detection, face recognition, and local classification use an internal
 loopback service; no separate AI container or port 8000 mapping is needed.
 YOLO26 and InsightFace models are included in the image.
 
 Recordings are stored in `/media/lightnvr/recordings`. The database,
 configuration, face identities, and classifier models survive add-on
-recreation. YouTube streaming uses the optional external ytstream service.
+recreation. YTStream's dashboard is available through the same Ingress
+session; connect your YouTube account there before enabling camera publishing.
 
 This packaging applies to the Home Assistant add-on. The standalone host
 deployment continues to run LightNVR, light-object-detect, and ytstream as
@@ -51,7 +52,7 @@ Supervisor instance has not yet been verified.
 ```sh
 python -m pip install PyYAML==6.0.2
 python -m unittest discover -s tests -p test_hass_addon.py
-docker build -t lightnvr-hass-addon:0.2.0 lightnvr
+docker build -t lightnvr-hass-addon:0.3.0 lightnvr
 python scripts/test_hass_addon.py
 python scripts/package_hass_addon.py
 ```

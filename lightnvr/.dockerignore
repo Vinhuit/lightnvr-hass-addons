@@ -1,5 +1,7 @@
 __pycache__
+**/__pycache__
 *.pyc
+**/*.pyc
 README.md
 DOCS.md
 CHANGELOG.md

@@ -16,9 +16,6 @@ configuration:
   onvif_network:
     name: ONVIF camera network
     description: Optional IPv4 CIDR, such as 192.168.1.0/24.
-  ytstream_server:
-    name: YouTube sync URL
-    description: Optional external ytstream sync endpoint. Omit to disable YouTube sync.
   webrtc_external_ip:
     name: WebRTC host IP
     description: Home Assistant host IP reachable by camera viewers.

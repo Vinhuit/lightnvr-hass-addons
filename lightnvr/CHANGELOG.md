@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.0
+
+- Bundle YTStream alongside LightNVR, go2rtc, and the internal detector.
+- Keep YTStream's API and RTSP source on loopback, without publishing port 8081.
+- Add the YTStream dashboard and Google OAuth client upload through Home Assistant Ingress.
+- Persist YouTube accounts, tokens, retry state, settings, logs, and history under `/data/ytstream`.
+- Automatically configure internal YouTube sync and remove `ytstream_server`.
+- Stop YTStream workers and FFmpeg with the add-on; supervise the YTStream service.
+- Standalone host deployments keep their separate containers.
+
 ## 0.2.0
 
 - Bundle LightNVR, go2rtc, and light-object-detect in one add-on.

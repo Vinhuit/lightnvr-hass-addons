@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Live Integration Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="lucide.min.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar / Navigation -->
+        <header class="header">
+            <div class="logo-area">
+                <i data-lucide="youtube" class="youtube-logo"></i>
+                <div class="logo-text">
+                    <h1>YT Streamer</h1>
+                    <span class="subtext">LightNVR Integration</span>
+                </div>
+            </div>
+            
+            <div class="header-stats">
+                <div class="stat-badge">
+                    <span class="stat-label">CPU:</span>
+                    <span id="cpu-usage" class="stat-value">0%</span>
+                </div>
+                <div class="stat-badge">
+                    <span class="stat-label">RAM:</span>
+                    <span id="ram-usage" class="stat-value">0%</span>
+                </div>
+                <div class="auth-status-container">
+                    <span class="status-dot inactive" id="auth-dot"></span>
+                    <span id="auth-text" class="auth-text">Checking Auth...</span>
+                    <a href="login" id="auth-btn" class="btn btn-primary btn-sm hide">
+                        <i data-lucide="key"></i> Authorize
+                    </a>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Body Grid -->
+        <main class="main-content">
+            <div class="toolbar" style="flex-wrap:wrap;gap:12px">
+                <a href="../index.html" class="btn btn-sm">← LightNVR</a>
+                <label class="btn btn-sm">Upload Google OAuth client JSON
+                    <input type="file" id="oauth-client-file" accept=".json,application/json" style="display:none">
+                </label>
+                <span id="oauth-client-status">Checking YouTube setup…</span>
+                <div style="width:100%;overflow-wrap:anywhere;font-size:12px">
+                    Add this Authorized redirect URI in Google Cloud:<br>
+                    <code id="oauth-redirect-uri"></code>
+                </div>
+            </div>
+            <!-- Toolbar -->
+            <div class="toolbar">
+                <div class="toolbar-title-area">
+                    <h2>Camera Streams</h2>
+                    <div class="history-pill-container">
+                        <span id="history-pill" class="history-pill" onclick="openSettingsModal()" title="Click to change history limit in settings">
+                            <i data-lucide="calendar"></i>
+                            <span id="history-pill-text">Past 30 Days</span>
+                        </span>
+                        <div class="specific-day-picker" title="Filter streams by a specific day">
+                            <i data-lucide="calendar-search"></i>
+                            <input type="date" id="global-date-picker" onchange="onGlobalDateChange(this.value)" title="Choose a specific day to view recordings">
+                            <button id="clear-date-btn" class="btn-clear-date hide" onclick="clearGlobalDateFilter()" title="Clear specific day filter">
+                                <i data-lucide="x"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="action-buttons">
+                    <button class="btn btn-secondary" onclick="openAccountsModal()">YouTube Accounts</button>
+                    <button class="btn btn-secondary" onclick="openSettingsModal()" title="Configure History Limit & YTStream Settings">
+                        <i data-lucide="sliders"></i> Settings
+                    </button>
+                    <button class="btn btn-secondary" onclick="openStreamsModal()">
+                        <i data-lucide="settings"></i> Configure Streams
+                    </button>
+                    <button class="btn btn-danger" onclick="triggerCleanup()">
+                        <i data-lucide="trash-2"></i> Cleanup Old Keys
+                    </button>
+                    <button class="btn btn-primary" onclick="refreshStatus()">
+                        <i data-lucide="refresh-cw"></i> Refresh
+                    </button>
+                </div>
+            </div>
+
+            <div id="youtube-notice" class="youtube-notice hide" role="status" aria-live="polite">
+                <span id="youtube-notice-text"></span>
+                <button id="youtube-retry-btn" class="btn btn-secondary btn-sm hide" onclick="retryYouTube()">
+                    Retry YouTube
+                </button>
+            </div>
+
+            <!-- Streams Grid -->
+            <div id="streams-grid" class="streams-grid">
+                <!-- Stream cards will be dynamically injected here -->
+                <div class="loading-state">
+                    <div class="spinner"></div>
+                    <p>Loading streams...</p>
+                </div>
+            </div>
+
+            <!-- Logs Section -->
+            <section class="logs-section">
+                <div class="logs-header">
+                    <div class="logs-title">
+                        <i data-lucide="terminal"></i>
+                        <h3>Console Logs</h3>
+                    </div>
+                    <div class="logs-controls">
+                        <select id="log-stream-select" onchange="loadLogs()">
+                            <option value="">Select Stream...</option>
+                        </select>
+                        <button class="btn btn-icon btn-secondary" onclick="loadLogs()" title="Refresh Logs">
+                            <i data-lucide="refresh-cw"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="terminal-body">
+                    <pre id="log-output">Select a camera above to display live logs.</pre>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="modal-overlay hide">
+        <div class="modal-container">
+            <div class="modal-header">
+                <div class="modal-title-group">
+                    <i data-lucide="sliders" class="modal-icon"></i>
+                    <h3>YTStream Settings</h3>
+                </div>
+                <button class="btn-close" onclick="closeSettingsModal()">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="setting-section">
+                    <div class="setting-label-row">
+                        <label class="setting-title">Previous Days History Limit</label>
+                        <span class="badge-setting-val" id="badge-current-limit">30 Days</span>
+                    </div>
+                    <p class="modal-hint">Specify how many previous days of YouTube stream URLs to display for each camera (default: 30 days).</p>
+                    
+                    <div class="presets-row">
+                        <button type="button" class="btn-preset" data-days="7" onclick="setPresetDays(7)">7 Days</button>
+                        <button type="button" class="btn-preset" data-days="14" onclick="setPresetDays(14)">14 Days</button>
+                        <button type="button" class="btn-preset active" data-days="30" onclick="setPresetDays(30)">30 Days</button>
+                        <button type="button" class="btn-preset" data-days="60" onclick="setPresetDays(60)">60 Days</button>
+                        <button type="button" class="btn-preset" data-days="90" onclick="setPresetDays(90)">90 Days</button>
+                    </div>
+
+                    <div class="form-group margin-top">
+                        <label for="setting-history-days-input">Custom Day Limit (1 - 365 days):</label>
+                        <div class="input-unit-wrapper">
+                            <input type="number" id="setting-history-days-input" min="1" max="365" value="30" oninput="onCustomDaysInput(this.value)">
+                            <span class="unit-text">Days</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-divider"></div>
+
+                <div class="setting-section">
+                    <label class="setting-title">YouTube Archive Sync</label>
+                    <p class="modal-hint">Query your authorized YouTube channel to scan and import past broadcasts for all configured streams.</p>
+                    <div class="sync-action-row">
+                        <button type="button" class="btn btn-secondary" id="btn-sync-history" onclick="triggerHistorySync()">
+                            <i data-lucide="refresh-cw"></i> Sync History from YouTube
+                        </button>
+                        <span id="sync-feedback" class="sync-feedback-text hide"></span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeSettingsModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="saveSettingsConfig()">Save Settings</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Specific Camera History Modal -->
+    <div id="camera-history-modal" class="modal-overlay hide">
+        <div class="modal-container modal-lg">
+            <div class="modal-header">
+                <div class="modal-title-group">
+                    <i data-lucide="calendar" class="modal-icon text-primary"></i>
+                    <div>
+                        <h3 id="history-modal-cam-name">Camera History</h3>
+                        <span id="history-modal-cam-sub" class="subtext">Previous stream recordings</span>
+                    </div>
+                </div>
+                <button class="btn-close" onclick="closeCameraHistoryModal()">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="history-filter-bar">
+                    <div class="history-date-picker-group">
+                        <label for="history-modal-date-picker"><i data-lucide="calendar-search"></i> Specific Day:</label>
+                        <input type="date" id="history-modal-date-picker" onchange="filterModalHistoryByDate(this.value)">
+                        <button type="button" id="history-modal-clear-date" class="btn btn-sm btn-secondary hide" onclick="clearModalDateFilter()">Show All Days</button>
+                    </div>
+                    <div class="history-summary-stats" id="history-modal-stats">
+                        Showing last 30 days
+                    </div>
+                </div>
+
+                <!-- Preview Embed Container -->
+                <div id="history-preview-container" class="history-preview-box hide">
+                    <div class="preview-header">
+                        <span id="preview-title" class="preview-title">Video Preview</span>
+                        <button class="btn-close" onclick="closeVideoPreview()"><i data-lucide="x"></i></button>
+                    </div>
+                    <div class="video-responsive">
+                        <iframe id="history-preview-iframe" src="" frameborder="0" allowfullscreen allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"></iframe>
+                    </div>
+                </div>
+
+                <!-- Timeline List of Recordings -->
+                <div id="history-timeline-container" class="history-timeline">
+                    <!-- Historical items populated by app.js -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeCameraHistoryModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Streams Configuration Modal -->
+    <div id="accounts-modal" class="modal-overlay hide">
+        <div class="modal-container">
+            <div class="modal-header"><h3>YouTube Accounts</h3><button class="btn btn-close" onclick="document.getElementById('accounts-modal').classList.add('hide')">×</button></div>
+            <div class="modal-body">
+                <p class="modal-hint">Authorize each account, then choose it in Configure Streams. Fallback applies to authentication errors. Channel restrictions and quota limits pause the stream.</p>
+                <div id="accounts-list"></div>
+                <div class="form-group"><label>New account ID</label><input id="new-account-id" placeholder="e.g. camera-channel-2" maxlength="64"></div>
+                <div class="form-group"><label>Account label</label><input id="new-account-label" placeholder="Camera Channel 2" maxlength="100"></div>
+                <button class="btn btn-primary" onclick="addYouTubeAccount()">Add Account</button>
+            </div>
+        </div>
+    </div>
+    <div id="streams-modal" class="modal-overlay hide">
+        <div class="modal-container">
+            <div class="modal-header">
+                <h3>Configure Streams (stream.json)</h3>
+                <button class="btn-close" onclick="closeStreamsModal()">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p class="modal-hint">Specify your RTSP urls and stream names. Changes are saved back to your persistent config.</p>
+                <div class="streams-list" id="modal-streams-list">
+                    <!-- Stream rows will be generated here -->
+                </div>
+                <button class="btn btn-secondary btn-full margin-top" onclick="addNewStreamRow()">
+                    <i data-lucide="plus"></i> Add New Camera Stream
+                </button>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeStreamsModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="saveStreamsConfig()">Save Configuration</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification Container -->
+    <div id="toast" class="toast hide">
+        <i data-lucide="check-circle" class="toast-icon"></i>
+        <span id="toast-message">Notification</span>
+    </div>
+
+    <script src="app.js"></script>
+    <script src="oauth-setup.js"></script>
+</body>
+</html>
