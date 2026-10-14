@@ -99,7 +99,7 @@ image with the same functionality is published and tested.
 
 ```sh
 python -m unittest discover -s tests -p test_hass_addon.py
-docker build -t lightnvr-hass-addon:0.1.0 lightnvr
+docker build -t lightnvr-hass-addon:0.1.4 lightnvr
 python scripts/test_hass_addon.py
 python scripts/package_hass_addon.py
 ```

@@ -54,7 +54,7 @@ def login(opener, base, password):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--image', default='lightnvr-hass-addon:0.1.3')
+    parser.add_argument('--image', default='lightnvr-hass-addon:0.1.4')
     parser.add_argument('--keep', action='store_true', help='Keep fixtures after success for manual browser testing')
     parser.add_argument('--generated-password', action='store_true', help='Exercise the default first-run generated password')
     parser.add_argument('--bind-address', default='127.0.0.1')

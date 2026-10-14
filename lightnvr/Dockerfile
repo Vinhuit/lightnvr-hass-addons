@@ -1,9 +1,9 @@
 # The enriched LightNVR image currently publishes amd64 only. The digest
-# fixes both the binary and the frontend with Home Assistant URL support.
-ARG LIGHTNVR_IMAGE=caubequay00/lightnvr-enrich@sha256:4b443a4314788e915eb58a0ceddc0b3898c69dfd8a69231f0d2c0f0a2352dd7f
+# fixes both the binary and the frontend, including the mobile layout fixes.
+ARG LIGHTNVR_IMAGE=caubequay00/lightnvr-enrich@sha256:4687029afd0bc64b5dc433c669779273a7d52d41c6893522f30d93ff5137108d
 FROM ${LIGHTNVR_IMAGE}
 
-ARG BUILD_VERSION=0.1.3
+ARG BUILD_VERSION=0.1.4
 ARG BUILD_ARCH=amd64
 LABEL io.hass.version="${BUILD_VERSION}" \
       io.hass.type="app" \

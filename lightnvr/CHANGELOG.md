@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.4
+
+- Fix horizontal overflow in Live View mode tabs, filters, and the grid picker on mobile.
+- Use the same responsive camera grid across WebRTC, HLS, MSE, and YouTube.
+- Keep tablet navigation in the mobile menu and wrap the footer on narrow screens.
+- Pin the enriched runtime image containing the mobile layout fixes.
+
 ## 0.1.3
 
 - Add `auth_enabled` to optionally skip the LightNVR login. Default remains enabled.
