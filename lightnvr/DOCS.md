@@ -9,7 +9,8 @@
 2. Open **Settings → Apps → App Store** (called **Add-ons** on older releases),
    then use **Check for updates** or reload the store. LightNVR should appear
    under **Local apps**.
-3. Install LightNVR. Supervisor builds the small wrapper image locally.
+3. Install LightNVR. Supervisor downloads the prebuilt image containing
+   LightNVR, go2rtc, object detection, face recognition, and classification.
 4. Optionally set `initial_admin_password` before the first start; otherwise
    a random password is printed once in the add-on log.
 5. Start the add-on, enable **Show in sidebar**, and open its web interface.
@@ -30,7 +31,6 @@ initial_admin_password: ""
 reset_admin_password: false
 auth_enabled: true
 # Optional:
-# detection_server: http://your-detector:8000/detect
 # ytstream_server: http://your-ytstream:8081/api/sync
 # onvif_network: 192.168.1.0/24
 # webrtc_external_ip: 192.168.1.10
@@ -43,15 +43,35 @@ auth_enabled: true
 | `initial_admin_password` | Used only when creating a new configuration. Empty generates a random password. A supplied password must contain at least 12 characters and at most 31 UTF-8 bytes with no whitespace, `;`, or `#`. Change existing users' passwords in LightNVR Users. |
 | `auth_enabled` | Default `true`. Set `false` to skip LightNVR login on both Ingress and the direct web port. Home Assistant authentication still applies to Ingress. |
 | `reset_admin_password` | Recovery only: reset existing admin to `initial_admin_password` at startup, backing up the database and revoking admin sessions. Disable after login. |
-| `detection_server` | Optional external HTTP(S) detection endpoint. The AI service is installed separately; it is not included in this add-on. |
 | `ytstream_server` | Optional external ytstream sync endpoint. Omit to disable YouTube synchronization. ytstream runs separately. |
 | `onvif_network` | Optional IPv4 camera network in CIDR notation. Enables discovery; adding cameras by RTSP URL works without it. Bridge networking may limit multicast discovery. |
 | `webrtc_external_ip` | Optional reachable host IP advertised to WebRTC clients. Use your Home Assistant LAN IP if video cannot connect. |
 
-Optional detection, ONVIF and external-IP values update the corresponding
+Optional ONVIF and external-IP values update the corresponding
 LightNVR settings when supplied. Omitting them preserves the existing NVR
 configuration; clear them in LightNVR Settings when no longer needed.
 Home Assistant provides the container timezone through `TZ`.
+
+# Internal AI
+
+This combined container is specific to the Home Assistant add-on. The
+standalone Docker Compose deployment still uses separate services.
+
+The add-on includes light-object-detect. LightNVR calls it on
+`http://127.0.0.1:8000` for object detection, face recognition, and local
+classification. Port 8000 is bound only to loopback and is not exposed to
+Home Assistant's network or the host. No separate detector installation or
+`detection_server` option is needed.
+
+YOLO26 and InsightFace weights are included in the image. Face identities,
+training samples, and classification artifacts are stored in `/data/detector`
+and survive add-on updates. On upgrade, the global AI endpoints are set to
+the internal service. Existing face-recognition and classification enable
+settings are preserved; enable the features in LightNVR Settings as needed.
+
+Previous face identities stored in a separate detector are not automatically
+imported; register identities in the add-on's Faces page. YouTube publishing
+still uses the optional ytstream service.
 
 # Network
 
@@ -77,6 +97,7 @@ unsuitable. The go2rtc API is intentionally kept inside the container.
 | Editable INI configuration and go2rtc overrides | `/etc/lightnvr` (Supervisor add-on configuration volume) |
 | Database and migrations state | `/data/database` |
 | Models | `/data/models` |
+| Face identities and classification training | `/data/detector` |
 | HLS cache | `/data/hls` |
 | Application logs | `/data/log` |
 | Recordings | `/media/lightnvr/recordings` |
@@ -99,7 +120,7 @@ image with the same functionality is published and tested.
 
 ```sh
 python -m unittest discover -s tests -p test_hass_addon.py
-docker build -t lightnvr-hass-addon:0.1.4 lightnvr
+docker build -t lightnvr-hass-addon:0.2.0 lightnvr
 python scripts/test_hass_addon.py
 python scripts/package_hass_addon.py
 ```

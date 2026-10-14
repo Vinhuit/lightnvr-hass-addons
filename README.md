@@ -28,11 +28,20 @@ is printed once in the add-on log. Home Assistant OS or Supervisor is required.
 - [Installation and configuration](lightnvr/DOCS.md)
 - [Changelog](lightnvr/CHANGELOG.md)
 
-Recordings are stored in `/media/lightnvr/recordings`. The database and
-configuration survive add-on recreation. AI detection and YouTube streaming
-use separately installed services through optional endpoints.
+LightNVR, go2rtc, and light-object-detect run together in one add-on.
+Object detection, face recognition, and local classification use an internal
+loopback service; no separate AI container or port 8000 mapping is needed.
+YOLO26 and InsightFace models are included in the image.
 
-This is an experimental first release. Docker tests cover login, Ingress,
+Recordings are stored in `/media/lightnvr/recordings`. The database,
+configuration, face identities, and classifier models survive add-on
+recreation. YouTube streaming uses the optional external ytstream service.
+
+This packaging applies to the Home Assistant add-on. The standalone host
+deployment continues to run LightNVR, light-object-detect, and ytstream as
+separate Docker Compose services.
+
+This is an experimental add-on. Docker tests cover login, Ingress,
 WebSocket upgrades, shutdown and data persistence, and the browser has been
 tested under a simulated Ingress path. Installation in a real Home Assistant
 Supervisor instance has not yet been verified.
@@ -42,15 +51,15 @@ Supervisor instance has not yet been verified.
 ```sh
 python -m pip install PyYAML==6.0.2
 python -m unittest discover -s tests -p test_hass_addon.py
-docker build -t lightnvr-hass-addon:0.1.4 lightnvr
+docker build -t lightnvr-hass-addon:0.2.0 lightnvr
 python scripts/test_hass_addon.py
 python scripts/package_hass_addon.py
 ```
 
-The Dockerfile pins the public enriched LightNVR runtime by digest. Supervisor
-builds the small wrapper locally, so no separately published wrapper image is
-needed. CI validates configuration, runs ShellCheck, builds the image, and
-tests Ingress and persistence in disposable containers.
+The Dockerfile pins the public LightNVR and detector runtimes by digest.
+Supervisor downloads the prebuilt combined image. CI validates configuration,
+runs ShellCheck, builds the image, and tests Ingress, internal AI inference,
+loopback isolation, and persistent data in disposable containers.
 
 ## Credits and license
 

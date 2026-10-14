@@ -13,9 +13,6 @@ configuration:
   auth_enabled:
     name: Yêu cầu đăng nhập LightNVR
     description: Mặc định bật. Tắt để bỏ đăng nhập LightNVR qua Ingress và cổng web trực tiếp. Ingress vẫn yêu cầu đăng nhập Home Assistant.
-  detection_server:
-    name: URL dịch vụ nhận diện
-    description: Endpoint HTTP(S) bên ngoài. Cần cài dịch vụ AI riêng.
   onvif_network:
     name: Mạng camera ONVIF
     description: IPv4 CIDR tùy chọn, ví dụ 192.168.1.0/24.

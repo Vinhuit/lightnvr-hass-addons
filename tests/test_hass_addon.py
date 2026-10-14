@@ -80,7 +80,6 @@ class AddonConfigurationTests(unittest.TestCase):
             {'auth_enabled': 'false'},
             {'reset_admin_password': True, 'initial_admin_password': ''},
             {'initial_admin_password': 'password\n[web]\nauth_enabled=false'},
-            {'detection_server': 'file:///etc/passwd'},
             {'ytstream_server': 'file:///etc/passwd'},
             {'onvif_network': 'not-a-network'}, {'webrtc_external_ip': 'host.invalid'},
         ]
@@ -91,11 +90,30 @@ class AddonConfigurationTests(unittest.TestCase):
                 self.assertEqual((self.paths[0] / 'lightnvr.ini').read_bytes(), before)
 
     def test_optional_services_are_saved_and_preserved_when_omitted(self):
-        self.prepare({**self.options, 'detection_server': 'http://detector:8000/detect', 'onvif_network': '192.168.1.0/24', 'webrtc_external_ip': '192.168.1.20'})
+        self.prepare({**self.options, 'onvif_network': '192.168.1.0/24', 'webrtc_external_ip': '192.168.1.20'})
         self.prepare()
         text = (self.paths[0] / 'lightnvr.ini').read_text()
-        for value in ['http://detector:8000/detect', '192.168.1.0/24', '192.168.1.20']:
+        for value in ['192.168.1.0/24', '192.168.1.20']:
             self.assertIn(value, text)
+
+    def test_upgrade_uses_internal_ai_and_preserves_feature_settings_and_data(self):
+        self.prepare()
+        config = self.paths[0] / 'lightnvr.ini'
+        config.write_text(config.read_text().replace('http://127.0.0.1:8000', 'http://light-object-detect:8000')
+                          + '\n[stream.front]\nurl = rtsp://camera/live\n'
+                          + '\n[api_detection]\nface_recognition_enabled = false\ncustom_classification_enabled = true\n')
+        faces = self.paths[1] / 'detector/faces.db'
+        faces.write_bytes(b'persistent face fixture')
+        self.prepare({**self.options, 'detection_server': 'http://old-detector:8000/api/v1/detect'})
+        text = config.read_text()
+        for endpoint in ('detect', 'faces/recognize', 'classification'):
+            self.assertIn('http://127.0.0.1:8000/api/v1/' + endpoint, text)
+        self.assertNotIn('light-object-detect:8000', text)
+        self.assertNotIn('old-detector:8000', text)
+        self.assertIn('face_recognition_enabled = false', text)
+        self.assertIn('custom_classification_enabled = true', text)
+        self.assertIn('url = rtsp://camera/live', text)
+        self.assertEqual(faces.read_bytes(), b'persistent face fixture')
 
     def test_duplicate_managed_keys_cannot_override_auth_or_paths(self):
         text = addon.patch_ini('[web]\nauth_enabled = false\nauth_enabled = false\n; keep comment', {'web': {'auth_enabled': 'true'}})
@@ -175,7 +193,9 @@ class AddonConfigurationTests(unittest.TestCase):
         self.assertEqual(config['map'][0]['type'], 'app_config')
         self.assertIsNone(config['ports']['8080/tcp'])
         self.assertNotIn('8099/tcp', config['ports'])
-        self.assertNotIn('image', config)
+        self.assertEqual(config['image'], 'caubequay00/lightnvr-hass-addon')
+        self.assertNotIn('8000/tcp', config['ports'])
+        self.assertNotIn('detection_server', config['schema'])
         for language in ('en', 'vi'):
             translation = yaml.safe_load((folder / f'translations/{language}.yaml').read_text(encoding='utf-8'))
             self.assertEqual(set(translation['configuration']), set(config['schema']))

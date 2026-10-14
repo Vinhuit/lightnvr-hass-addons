@@ -54,7 +54,7 @@ def login(opener, base, password):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--image', default='lightnvr-hass-addon:0.1.4')
+    parser.add_argument('--image', default='lightnvr-hass-addon:0.2.0')
     parser.add_argument('--keep', action='store_true', help='Keep fixtures after success for manual browser testing')
     parser.add_argument('--generated-password', action='store_true', help='Exercise the default first-run generated password')
     parser.add_argument('--bind-address', default='127.0.0.1')
@@ -154,6 +154,16 @@ http {
             first = websocket.recv(4096).split(b'\r\n', 1)[0]
             check(b'101' in first, 'WebSocket upgrade failed: ' + first.decode())
 
+        internal_check = Path(__file__).with_name('check_internal_detector.py')
+        docker('cp', str(internal_check), app + ':/tmp/check_internal_detector.py')
+        check('INTERNAL_DETECTOR_PASS' in docker('exec', app, '/opt/venv/bin/python',
+            '/tmp/check_internal_detector.py', 'initialize'), 'Internal AI inference failed')
+        bindings = json.loads(docker('inspect', app))[0]['NetworkSettings']['Ports']
+        check('8000/tcp' not in bindings, 'Internal detector port was published')
+        loopback = docker('exec', app, '/opt/venv/bin/python', '-c',
+            "import socket; s=socket.socket(); print(s.connect_ex((socket.gethostbyname(socket.gethostname()), 8000)))")
+        check(loopback != '0', 'Detector is reachable on the container network interface')
+
         marker = '/media/lightnvr/recordings/persistence-test.txt'
         docker('exec', app, 'python3', '-c', f'from pathlib import Path; Path({marker!r}).write_text("persistent media fixture")')
         check((folder / 'data/database/lightnvr.db').exists(), 'Database is not in the persistent volume')
@@ -167,6 +177,9 @@ http {
         jar.clear()
         login(opener, ingress, password)
         check(docker('exec', app, 'cat', marker) == 'persistent media fixture', 'Media was lost on recreation')
+        docker('cp', str(internal_check), app + ':/tmp/check_internal_detector.py')
+        check('INTERNAL_DETECTOR_PASS' in docker('exec', app, '/opt/venv/bin/python',
+            '/tmp/check_internal_detector.py', 'verify'), 'Face/classification data was lost on recreation')
         config = docker('exec', app, 'cat', '/etc/lightnvr/lightnvr.ini')
         check('retention_days = 3' in config, 'Updated retention was not applied')
         # Recovery must work against the actual pinned binary's password format.
@@ -233,8 +246,19 @@ http {
             check(error.code == 401, 'Unexpected response with authentication restored')
         login(opener, ingress, recovered)
         check(docker('exec', app, 'cat', marker) == 'persistent media fixture', 'Toggling authentication lost recordings')
+        docker('exec', app, '/opt/venv/bin/python', '-c',
+            "from pathlib import Path; import os,signal; "
+            "pids=[int(p.parent.name) for p in Path('/proc').glob('[0-9]*/cmdline') "
+            "if p.read_bytes().startswith(b'/opt/venv/bin/python\\x00-m\\x00uvicorn\\x00')]; "
+            "assert len(pids)==1,pids; os.kill(pids[0],signal.SIGTERM)")
+        for _ in range(30):
+            if not json.loads(docker('inspect', app))[0]['State']['Running']:
+                break
+            time.sleep(1)
+        check(not json.loads(docker('inspect', app))[0]['State']['Running'],
+              'Add-on stayed up after the internal detector exited')
         success = True
-        print(json.dumps({'result': 'PASS', 'checks': ['startup', 'login', 'Supervisor-only Ingress', 'cookie path', 'authenticated API', 'WebSocket upgrade', 'graceful stop', 'recreation persistence', 'admin recovery', 'old credentials rejected', 'admin sessions revoked', 'recovery backup', 'recovery disabled', 'login disabled on Ingress and direct port', 'authentication restored'],
+        print(json.dumps({'result': 'PASS', 'checks': ['startup', 'login', 'Supervisor-only Ingress', 'cookie path', 'authenticated API', 'WebSocket upgrade', 'internal object and face inference', 'internal classification training', 'detector loopback only', 'face/classification persistence', 'detector exit stops add-on', 'graceful stop', 'recreation persistence', 'admin recovery', 'old credentials rejected', 'admin sessions revoked', 'recovery backup', 'recovery disabled', 'login disabled on Ingress and direct port', 'authentication restored'],
             'ingress_port': ingress_port, 'fixtures': str(folder), 'containers': [app, supervisor], 'network': network, 'kept': args.keep}))
     except Exception:
         # Configuration fixtures contain test credentials only, never real NVR data.

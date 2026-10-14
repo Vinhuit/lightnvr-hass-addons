@@ -1,7 +1,8 @@
 name: LightNVR
-version: "0.1.4"
+version: "0.2.0"
+image: caubequay00/lightnvr-hass-addon
 slug: lightnvr
-description: Lightweight network video recorder with go2rtc and local camera recording
+description: Network video recorder with internal object detection, face recognition and classification
 url: https://github.com/Vinhuit/lightnvr-hass-addons
 arch:
   - amd64
@@ -49,7 +50,6 @@ schema:
   initial_admin_password: password
   reset_admin_password: bool
   auth_enabled: bool
-  detection_server: url?
   ytstream_server: url?
   onvif_network: str?
   webrtc_external_ip: str?

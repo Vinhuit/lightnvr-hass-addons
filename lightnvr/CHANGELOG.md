@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.0
+
+- Bundle LightNVR, go2rtc, and light-object-detect in one add-on.
+- Publish a prebuilt add-on image so Home Assistant does not build AI dependencies locally.
+- Run object detection, face recognition, and custom classification internally on loopback port 8000.
+- Include YOLO26 and InsightFace models in the image for local inference.
+- Store face identities and classification models under persistent `/data/detector`.
+- Automatically configure internal AI endpoints; remove the external `detection_server` option.
+- Stop all services together and restart the add-on if the internal detector exits.
+
 ## 0.1.4
 
 - Fix horizontal overflow in Live View mode tabs, filters, and the grid picker on mobile.

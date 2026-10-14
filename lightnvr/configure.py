@@ -25,7 +25,7 @@ def validate(options):
         raise ValueError("Invalid log_level")
     if type(options.get('auth_enabled', True)) is not bool:
         raise ValueError('auth_enabled must be a boolean')
-    for name in ("initial_admin_password", "detection_server", "ytstream_server", "onvif_network", "webrtc_external_ip"):
+    for name in ("initial_admin_password", "ytstream_server", "onvif_network", "webrtc_external_ip"):
         value = options.get(name, "")
         if not isinstance(value, str) or any(c in value for c in "\r\n;#\x00"):
             raise ValueError(f"Invalid {name}: line breaks, INI comment characters and NUL are not supported")
@@ -42,7 +42,7 @@ def validate(options):
             raise ValueError("onvif_network must be an IPv4 CIDR network")
     if options.get("webrtc_external_ip"):
         ipaddress.ip_address(options["webrtc_external_ip"])
-    for name in ('detection_server', 'ytstream_server'):
+    for name in ('ytstream_server',):
         if options.get(name):
             url = urlparse(options[name])
             if url.scheme not in ("http", "https") or not url.hostname:
@@ -106,7 +106,7 @@ def prepare(options, config_dir=Path('/etc/lightnvr'), data_dir=Path('/data'), m
     validate(options)
     config_dir, data_dir, media_dir = map(Path, (config_dir, data_dir, media_dir))
     recordings = media_dir / 'lightnvr' / 'recordings'
-    for path in (config_dir / 'go2rtc', data_dir / 'database', data_dir / 'models', data_dir / 'hls', data_dir / 'log', recordings / 'mp4'):
+    for path in (config_dir / 'go2rtc', data_dir / 'database', data_dir / 'models', data_dir / 'detector', data_dir / 'hls', data_dir / 'log', recordings / 'mp4'):
         path.mkdir(parents=True, exist_ok=True)
     config = config_dir / 'lightnvr.ini'
     new = not config.exists()
@@ -115,6 +115,12 @@ def prepare(options, config_dir=Path('/etc/lightnvr'), data_dir=Path('/data'), m
         'storage': {'path': str(recordings), 'path_hls': str(data_dir / 'hls'), 'mp4_path': str(recordings / 'mp4'), 'retention_days': options.get('retention_days', 30), 'mp4_retention_days': options.get('retention_days', 30), 'ytstream_api_url': options.get('ytstream_server', '')},
         'database': {'path': str(data_dir / 'database/lightnvr.db')},
         'models': {'path': str(data_dir / 'models')},
+        'api_detection': {
+            'url': 'http://127.0.0.1:8000/api/v1/detect',
+            'backend': 'onnx',
+            'face_recognition_api_url': 'http://127.0.0.1:8000/api/v1/faces/recognize',
+            'classification_worker_url': 'http://127.0.0.1:8000/api/v1/classification',
+        },
         'web': {'port': 8080, 'bind_ip': '0.0.0.0', 'root': '/var/lib/lightnvr/www', 'auth_enabled': str(options.get('auth_enabled', True)).lower()},
         'go2rtc': {'enabled': 'true', 'binary_path': '/bin/go2rtc', 'config_dir': str(config_dir / 'go2rtc'), 'api_port': 1984, 'rtsp_port': 8554, 'webrtc_listen_port': 8555},
     }
@@ -125,8 +131,6 @@ def prepare(options, config_dir=Path('/etc/lightnvr'), data_dir=Path('/data'), m
         values['storage'].update(auto_delete_oldest='true', record_mp4_directly='true', mp4_segment_duration=900)
         values['memory'] = {'use_swap': 'false'}
         values['go2rtc']['webrtc_enabled'] = 'true'
-    if options.get('detection_server'):
-        values['api_detection'] = {'url': options['detection_server']}
     if options.get('webrtc_external_ip'):
         values['go2rtc']['external_ip'] = options['webrtc_external_ip']
     if options.get('onvif_network'):
